@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 class conditioning_network(nn.Module):
@@ -41,6 +42,7 @@ class conditioning_network(nn.Module):
                            nn.Sequential(nn.ReLU(inplace=True),
                                          nn.AvgPool2d(6),
                                          Flatten(),
+                                         # CBH
                                          nn.Linear(12800, 9600),
                                          nn.ReLU(inplace=True),
                                          nn.Linear(9600, 6400),

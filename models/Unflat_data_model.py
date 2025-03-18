@@ -1,5 +1,6 @@
+import numpy as np
+import torch
 import torch.nn as nn
-
 class Unflat_data(nn.Module):
     '''Args:
         X: input (BXD) to  output (BXCXHXW) 

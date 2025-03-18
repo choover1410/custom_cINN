@@ -1,6 +1,6 @@
 import numpy as np
+import torch
 import torch.nn as nn
-
 class Permute_data(nn.Module):
     '''
     Args: 
@@ -17,7 +17,6 @@ class Permute_data(nn.Module):
         for i, j in enumerate(self.Permute_data):
             Permute_sample[j] = i
         self.Permute_sample = Permute_sample
-
     def forward(self, x, sample_the_data=False):
         if sample_the_data == False:
             y = x[:, self.Permute_data]

@@ -1,5 +1,6 @@
+import numpy as np
+import torch
 import torch.nn as nn
-
 class Flat_data(nn.Module):
     '''Args:
         X: input (BXCXHXW) 
@@ -8,7 +9,6 @@ class Flat_data(nn.Module):
     '''
     def __init__(self):
         super().__init__()
-
     def forward(self, x):
         y = x.view(x.shape[0], -1)
         return y

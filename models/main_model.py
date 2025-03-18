@@ -1,4 +1,6 @@
+import numpy as np 
 import torch
+import sys
 import torch.nn as nn
 from models.CouplingBlock import CouplingBlock
 from models.CouplingOneSide import CouplingOneSide
