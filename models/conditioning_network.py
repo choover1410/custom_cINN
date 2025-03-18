@@ -27,10 +27,12 @@ class conditioning_network(nn.Module):
                     out = x.view(1000,1,8,8) # for config_1  change this to out = x.view(1000,2,8,8)
                 elif x[:,0,0].shape == (1,):
                     out = x.view(1,1,8,8) # for config_1  change this to out = x.view(1,2,8,8)
+                else:
+                    out = x.view(2,1,128,128)
                 return out
 
-        block_1_arb_chans = 21
-        block_2_arb_chans = 96
+        block_1_arb_chans = 10
+        block_2_arb_chans = 20
 
         self.multiscale = nn.ModuleList([
                            # C3 (Block 3)
@@ -48,9 +50,9 @@ class conditioning_network(nn.Module):
                                          nn.ConvTranspose2d(c2_size, c1_size, 2, padding=0, stride=2)),
                            # C4 (Block 4)
                            nn.Sequential(nn.ReLU(inplace=True),
-                                         nn.AvgPool2d(6),
+                                         nn.AvgPool2d(32),
                                          Flatten(),
-                                         nn.Linear(12000, 9600),
+                                         nn.Linear(12288, 9600),
                                          nn.ReLU(inplace=True),
                                          nn.Linear(9600, 6400),
                                          nn.ReLU(inplace=True),
