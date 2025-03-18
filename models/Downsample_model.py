@@ -11,9 +11,9 @@ class Downsample(nn.Module):
     '''
     def __init__(self):
         super(Downsample,self).__init__()
+
     def forward(self, x, sample_the_data=False):
         if sample_the_data == True:
-
             batch_size, channel_1, height_1, width_1 = x.size()
             channel_2 = channel_1 / 4
             width_2 = width_1 * 2
@@ -31,10 +31,11 @@ class Downsample(nn.Module):
             data = data.reshape(batch_size, int(height_2), int(width_2), int(channel_2))
             data = data.permute(0, 3, 1, 2)
             return data
+
         else:
             batch_size, channel_2, height_2, width_2 = x.size()
             height_1 = height_2 / 2
-            width_1 = width_2 /2
+            width_1 = width_2 / 2
             channel_1 = channel_2 * 4
             data = x.permute(0, 2, 3, 1)
             val2 = []
@@ -47,10 +48,3 @@ class Downsample(nn.Module):
             data = data32.permute(0, 2, 1, 3)
             data = data.permute(0, 3, 1, 2)
             return data
-
-
-# if __name__ == "__main__":
-#     A = Downsample()
-#     x = torch.Tensor(20,2,32,32)
-#     B = A(x,sample_the_data = False)
-#     print(B.shape)

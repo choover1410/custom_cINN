@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from models.constants import *
 
 class conditioning_network(nn.Module):
     '''conditioning network
@@ -28,22 +29,28 @@ class conditioning_network(nn.Module):
                     out = x.view(1,1,8,8) # for config_1  change this to out = x.view(1,2,8,8)
                 return out
 
+        block_1_arb_chans = 21
+        block_2_arb_chans = 96
+
         self.multiscale = nn.ModuleList([
+                           # C3 (Block 3)
                            nn.Sequential(Unflatten(),
-                                         nn.ConvTranspose2d(1,  48, 2, padding=0), # for config_1  change this to nn.ConvTranspose2d(2,  48, 2, padding=0)
+                                         nn.ConvTranspose2d(1, block_1_arb_chans, 2, padding=0), # for config_1  change this to nn.ConvTranspose2d(2,  48, 2, padding=0)
                                          nn.ReLU(inplace=True),
-                                         nn.ConvTranspose2d(48, 48, 2, padding=1,stride=2)),
+                                         nn.ConvTranspose2d(block_1_arb_chans, c3_size, 2, padding=1,stride=2)),
+                           # C2 (Block 2)
                            nn.Sequential(nn.ReLU(inplace=True),
-                                         nn.ConvTranspose2d(48,  96, 2, padding=0,stride=2),
+                                         nn.ConvTranspose2d(c3_size,  block_2_arb_chans, 2, padding=0,stride=2),
                                          nn.ReLU(inplace=True),
-                                         nn.ConvTranspose2d(96, 128, 3, padding=1, stride=1)),
+                                         nn.ConvTranspose2d(block_2_arb_chans, c2_size, 3, padding=1, stride=1)),
+                           # C1 (Block 1)
                            nn.Sequential(nn.ReLU(inplace=True),
-                                         nn.ConvTranspose2d(128, 128, 2, padding=0, stride=2)),
+                                         nn.ConvTranspose2d(c2_size, c1_size, 2, padding=0, stride=2)),
+                           # C4 (Block 4)
                            nn.Sequential(nn.ReLU(inplace=True),
                                          nn.AvgPool2d(6),
                                          Flatten(),
-                                         # CBH
-                                         nn.Linear(12800, 9600),
+                                         nn.Linear(12000, 9600),
                                          nn.ReLU(inplace=True),
                                          nn.Linear(9600, 6400),
                                          nn.ReLU(inplace=True),
@@ -53,7 +60,7 @@ class conditioning_network(nn.Module):
                                          nn.ReLU(inplace=True),
                                          nn.Linear(2048, 1024),                                         
                                          nn.ReLU(inplace=True),
-                                         nn.Linear(1024, 512))])
+                                         nn.Linear(1024, c4_size))])
                                          
 
     def forward(self, cond):

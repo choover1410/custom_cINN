@@ -1,169 +1,206 @@
 import numpy as np 
 import torch
-import sys
 import torch.nn as nn
 from models.CouplingBlock import CouplingBlock
 from models.CouplingOneSide import CouplingOneSide
-from models.Divide_data_model import divide_data
 from models.Downsample_model import Downsample
-from models.Permute_data_model import Permute_data
-from models.Unflat_data_model import Unflat_data
-from models.flat_data_model import Flat_data
+from models.constants import *
+
+class Divide_data(nn.Module):
+    '''Args:
+        X: input (BXD) to  output (BXCXHXW) 
+        (This is used to split the data  for the concat part for Z and 
+        the other part for the network during the training and sampling phase).
+    '''
+    def __init__(self, input_dimension, split_data_channel):
+        super(Divide_data,self).__init__()
+        self.split_data_channel = split_data_channel
+    def forward(self, x, sample_the_data=False):
+        out = torch.split(x, self.split_data_channel,1)
+        return out
+
+class Flat_data(nn.Module):
+    '''Args:
+        X: input (BXCXHXW) 
+        y: output (BXD)
+        (This is used to flatten the data from 4D to 2D for the concat part of the fully connected layer).
+    '''
+    def __init__(self):
+        super().__init__()
+    def forward(self, x):
+        y = x.view(x.shape[0], -1)
+        return y
+
+class Permute_data(nn.Module):
+    '''
+    Args: 
+    x: input (BXCXHXW)
+    To permute the data channel-wise. This operation called during both the training and testing.
+    '''
+
+    def __init__(self, input_data, seed):
+        super(Permute_data,self).__init__()
+        np.random.seed(seed)
+        self.Permute_data = np.random.permutation(input_data)
+        np.random.seed()
+        Permute_sample = np.zeros((self.Permute_data.shape))
+        for i, j in enumerate(self.Permute_data):
+            Permute_sample[j] = i
+        self.Permute_sample = Permute_sample
+
+    def forward(self, x, sample_the_data=False):
+        if sample_the_data == False:
+            y = x[:, self.Permute_data]
+            return y
+        else:
+            y1 = x[:, self.Permute_sample]
+            return y1
+
+class Unflat_data(nn.Module):
+    '''Args:
+        X: input (BXD) to  output (BXCXHXW) 
+        This is used to unflatten the data from 2D to 4D for the concat part during the sampling phase
+    '''
+    def __init__(self, input_dimension):
+        super().__init__()
+        self.shape_dim = input_dimension[0]
+
+    def forward(self, x, sample_the_data=False):
+        y = x.view(x.shape[0], *self.shape_dim)
+        return y
 
 class main_file(nn.Module):
-    '''
-    Args:
-    s_net_t_net: scale and shift network
-    input_dimension: input dimension
-    for corresponding multiscale blocks.
-    x: Input (BXCXHXW)
-    c: conditioning data
-    '''
-    def __init__(self, cond_size, s_net_t_net,
-                input_dimension1,input_dimension12,cond_size1, permute_a1,value_dim,input_dimension1_r,
-                input_dimension2,input_dimension22,cond_size2,permute_a2,s_net_t_net2,input_dimension2_r,
-                input_dimension3,input_dimension32,cond_size3,s_net_t_net3,permute_a3):
-        super(main_file,self).__init__()       
-        self.single_side1 = CouplingOneSide(s_net_t_net, cond_size)
-        self.single_side2 = CouplingOneSide(s_net_t_net, cond_size)
-        self.single_side3 = CouplingOneSide(s_net_t_net, cond_size)
-        self.single_side4 = CouplingOneSide(s_net_t_net, cond_size)
-        self.single_side5 = CouplingOneSide(s_net_t_net, cond_size)
-        self.single_side6 = CouplingOneSide(s_net_t_net, cond_size)
+    def __init__(self,
+                s_net_t_net,
+                s_net_t_net2,
+                s_net_t_net3,
+                ):
 
+        super(main_file,self).__init__()
+        # Misc.
         self.downsample = Downsample()
+        self.flat2 = Flat_data()
+        self.unflat1 = Unflat_data([(2,32,32)]) # for inverse
+        self.unflat2 = Unflat_data([(4,16,16)]) # for inverse
 
-        self.coupling1 = CouplingBlock(s_net_t_net, input_dimension1,input_dimension12,cond_size1)
-        self.coupling2 = CouplingBlock(s_net_t_net, input_dimension1,input_dimension12,cond_size1)
-        self.coupling3 = CouplingBlock(s_net_t_net, input_dimension1,input_dimension12,cond_size1)
-        self.coupling4 = CouplingBlock(s_net_t_net, input_dimension1,input_dimension12,cond_size1)
-        self.coupling5 = CouplingBlock(s_net_t_net, input_dimension1,input_dimension12,cond_size1)
+        # Block 1
+        # Last Output Channel Size of conditional Block 1 must match c_size
+        self.single_side1 = CouplingOneSide(s_net_t_net, c1_size)
+        self.single_side2 = CouplingOneSide(s_net_t_net, c1_size)
+        self.single_side3 = CouplingOneSide(s_net_t_net, c1_size)
+        self.single_side4 = CouplingOneSide(s_net_t_net, c1_size)
+        self.single_side5 = CouplingOneSide(s_net_t_net, c1_size)
+        self.single_side6 = CouplingOneSide(s_net_t_net, c1_size)
+        # End Block 1
 
+        # Block 2
+        block2_input_dim = 4
+        block2_length=3
 
-        self.permute = Permute_data(permute_a1,0)
-        self.permute_c1 = Permute_data(permute_a1,1)
-        self.permute_c2 = Permute_data(permute_a1,2)
-        self.permute_c3 = Permute_data(permute_a1,3)
-        self.permute_c4 = Permute_data(permute_a1,4)
-    
+        permute_a1=block2_input_dim
+        self.coupling1 = CouplingBlock(s_net_t_net, block2_input_dim, block2_length, c2_size)
+        self.coupling2 = CouplingBlock(s_net_t_net, block2_input_dim, block2_length, c2_size)
+        self.coupling3 = CouplingBlock(s_net_t_net, block2_input_dim, block2_length, c2_size)
+        self.coupling4 = CouplingBlock(s_net_t_net, block2_input_dim, block2_length, c2_size)
+        self.coupling5 = CouplingBlock(s_net_t_net, block2_input_dim, block2_length, c2_size)
+        self.permute = Permute_data(permute_a1, 0)
+        self.permute_c1 = Permute_data(permute_a1, 1)
+        self.permute_c2 = Permute_data(permute_a1, 2)
+        self.permute_c3 = Permute_data(permute_a1, 3)
+        self.permute_c4 = Permute_data(permute_a1, 4)
+        self.split = Divide_data(block2_input_dim, [2,2])
+        # End Block 2
 
-        self.unflat1 = Unflat_data(input_dimension1_r)
+        # Block 3
+        block3_input_dim=8
+        block3_length=3
 
-        self.split = divide_data(input_dimension1,value_dim)
-
-  
-        self.coupling21 = CouplingBlock(s_net_t_net2, input_dimension2,input_dimension22,cond_size2)
-        self.coupling22 = CouplingBlock(s_net_t_net2, input_dimension2,input_dimension22,cond_size2)
-        self.coupling23 = CouplingBlock(s_net_t_net2, input_dimension2,input_dimension22,cond_size2)
-        self.coupling24 = CouplingBlock(s_net_t_net2, input_dimension2,input_dimension22,cond_size2)
-
-
+        permute_a2=block3_input_dim
+        self.coupling21 = CouplingBlock(s_net_t_net2, block3_input_dim, block3_length, c3_size)
+        self.coupling22 = CouplingBlock(s_net_t_net2, block3_input_dim, block3_length, c3_size)
+        self.coupling23 = CouplingBlock(s_net_t_net2, block3_input_dim, block3_length, c3_size)
+        self.coupling24 = CouplingBlock(s_net_t_net2, block3_input_dim, block3_length, c3_size)
         self.permute2 = Permute_data(permute_a2,0)
         self.permute2_c1 = Permute_data(permute_a2,1)
         self.permute2_c2 = Permute_data(permute_a2,2)
         self.permute2_c3 = Permute_data(permute_a2,3)
+        self.split2 = Divide_data(block3_input_dim, [4,4])
+        # End Block 3
 
+        # Block 4
+        block4_input_dim=1024 # no more than 1024
+        block4_length=1
 
-        self.split2 = divide_data(input_dimension2,[4,4])
-
-        self.flat2 = Flat_data()
-
-
-        self.unflat2 = Unflat_data(input_dimension2_r)
-
-        self.coupling31 = CouplingBlock(s_net_t_net3, input_dimension3,input_dimension32,cond_size3)
-
-
+        permute_a3=block4_input_dim
+        self.coupling31 = CouplingBlock(s_net_t_net3, block4_input_dim, block4_length, c4_size)
         self.permute3 = Permute_data(permute_a3,0)
+        # End Block 4
 
 
     def forward(self, x, c1,c2,c3,c4,sample_the_data=False,forward=False,jac=False):
         if forward==True:
-            #1-1
             out1= self.single_side1(x,c1)
             jac0 = self.single_side1.jacobian()
-            #1-2
             out2 = self.single_side2(out1,c1)
             jac0_1 = self.single_side2.jacobian()
-            #1-3
             out3= self.single_side3(out2,c1)
             jac0_2 = self.single_side3.jacobian()
-            #1-4
             out4 = self.single_side4(out3,c1)
             jac0_3 = self.single_side4.jacobian()
-            #1-5
             out5 = self.single_side5(out4,c1)
             jac0_4 = self.single_side5.jacobian()
-            #1-6
             out6 = self.single_side6(out5,c1)
             jac0_5 = self.single_side6.jacobian()
-            #downsample
             out7 = self.downsample(out6)
-            jac_glow1 =out7
 
             #2
             out12 = self.coupling1(out7,c2)
             jac1 = self.coupling1.jacobian()
             out13 = self.permute(out12)
-
             out14 = self.coupling2(out13,c2)
             jac1_c1 = self.coupling2.jacobian()
             out15 = self.permute_c1(out14)
-
             out16 = self.coupling3(out15,c2)
             jac1_c2 = self.coupling3.jacobian()
             out17 = self.permute_c2(out16)
-
             out18 = self.coupling4(out17,c2)
             jac1_c3 = self.coupling4.jacobian()
             out19 = self.permute_c3(out18)
-
             out20 = self.coupling5(out19,c2)
             jac1_c4 = self.coupling5.jacobian()
             out21 = self.permute_c4(out20)
-
-
             out22 = self.split(out21)
             out1s = out22[0] 
             out2s = out22[1] 
 
-
             flat_output1 = self.flat2(out2s)
 
-
             out31 = self.downsample(out1s)
-            jac_glow2 = out31
 
             #3
             out32 = self.coupling21(out31,c3)
             jac2 = self.coupling21.jacobian()
             out33 = self.permute2(out32)
-
             out34 = self.coupling22(out33,c3)
             jac2_c1 = self.coupling22.jacobian()
             out35 = self.permute2_c1(out34)
-
             out36 = self.coupling23(out35,c3)
             jac2_c2 = self.coupling23.jacobian()
             out37= self.permute2_c2(out36)
-
             out38 = self.coupling24(out37,c3)
             jac2_c3 = self.coupling24.jacobian()
             out39 = self.permute2_c3(out38)
-
             out40 = self.split2(out39)
             out1s4 = out40[0] 
             out2s4 = out40[1] 
             flat_output2 = self.flat2(out2s4)        
             flat_ds2 = self.flat2(out1s4)  
-            jac_glow3 =  flat_ds2
 
             #4
             out1f = self.coupling31(flat_ds2,c4)
             jac3 = self.coupling31.jacobian()
-
             out_all = self.permute3(out1f)
-           
+
             final_out  = torch.cat((flat_output1,flat_output2,out_all),dim=1)
 
             #jacobian

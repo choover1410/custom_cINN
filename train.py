@@ -40,15 +40,12 @@ def main():
                                         nn.Linear(Hidden_layer, output_data))
 
     # Scale and Shift networks
-    network_s_t = convolution_network(args.hidden_layer_channel)     
-    network_s_t2 = convolution_network(args.hidden_layer_channel2)
-    network_s_t3 = fully_connected(args.hidden_layer3)
+    network_s_t = convolution_network(args.hidden_layer_channel) # arbitrary channels in st network
+    network_s_t2 = convolution_network(args.hidden_layer_channel2) # arbitrary channels in st network
+    network_s_t3 = fully_connected(args.hidden_layer3) # arbitrary channels in FC network
 
     #load networks
-    INN_network = main_file(args.cond_size,network_s_t,
-                        args.input_dimension1,args.input_dimension12,args.cond_size1,args.permute_a1,args.split_channel,args.input_dimension1_r,
-                        args.input_dimension2,args.input_dimension22,args.cond_size2,args.permute_a2,network_s_t2,args.input_dimension2_r,
-                        args.input_dimension3,args.input_dimension32,args.cond_size3,network_s_t3,args.permute_a3).to(device)
+    INN_network = main_file(network_s_t, network_s_t2, network_s_t3).to(device)
     cond_network = conditioning_network().to(device)
 
     # Set up Adam optimizer
@@ -75,6 +72,7 @@ def main():
 
             x, y = x.to(device), y.to(device)
 
+            print(f"X Shape: {x.shape}")
             # Unflattens the [1x4096] into [64x64]
             x = x.view(16,1,64,64)
 
